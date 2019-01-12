@@ -9,6 +9,10 @@ import javafx.scene.control.Button
 import javafx.scene.control.TableView
 import javafx.scene.layout.Priority
 import javafx.stage.FileChooser
+import org.apache.pdfbox.multipdf.PDFMergerUtility
+import org.apache.pdfbox.multipdf.Splitter
+import org.apache.pdfbox.pdmodel.PDDocument
+import org.apache.pdfbox.pdmodel.PDDocumentInformation
 import tornadofx.*
 
 
@@ -16,6 +20,7 @@ class PDFMergerApp : App(PDFMergerView::class)
 
 
 class PDFMergerView : View("PDF Merger") {
+    //TODO("Internationalisation")
     private var table : TableView<Document> by singleAssign()
     private var moveUpBtn : Button by singleAssign()
     private var moveDownBtn : Button by singleAssign()
@@ -156,7 +161,22 @@ class PDFMergerView : View("PDF Merger") {
     }
 
     private fun mergeFiles() {
-        //TODO("Implement merging")
+        val merger = PDFMergerUtility()
+        val out = PDDocument()
+
+        for (document in documents) {
+            val splitter = Splitter()
+            splitter.setStartPage(document.start)
+            splitter.setEndPage(document.end)
+            val splits = splitter.split(document.pdf)
+            for (split in splits) {
+                merger.appendDocument(out, split)
+            }
+        }
+
+        val fileToSave = chooseFile(title = "Save Merged PDF", filters = arrayOf(), mode = FileChooserMode.Save)[0]
+        out.documentInformation = PDDocumentInformation()
+        out.save(fileToSave)
     }
 }
 
