@@ -1,15 +1,15 @@
 package io.github.s8a.pdfmerger
 
 
-import javafx.beans.binding.BooleanBinding
-import javafx.beans.property.SimpleBooleanProperty
+import java.io.File
+import java.util.concurrent.Callable
+import javafx.beans.binding.Bindings
 import javafx.geometry.Orientation
 import javafx.scene.control.Button
 import javafx.scene.control.TableView
 import javafx.scene.layout.Priority
 import javafx.stage.FileChooser
 import tornadofx.*
-import java.io.File
 
 
 class PDFMergerApp : App(PDFMergerView::class)
@@ -17,53 +17,40 @@ class PDFMergerApp : App(PDFMergerView::class)
 
 class PDFMergerView : View("PDF Merger") {
     private var table : TableView<Document> by singleAssign()
-    private var documents = observableList(
-            Document(File("/home/s8a/Documents/Umc/UmcDocumentosInscripcion.pdf")),
-            Document(File("/home/s8a/Documents/Umc/UmcIndicesAcademicos2018-02.completo.pdf")),
-            Document(File("/home/s8a/Documents/Umc/UmcIndicesAcademicos2018-02.nuevo.pdf"))
-    )
+    private var moveUpBtn : Button by singleAssign()
+    private var moveDownBtn : Button by singleAssign()
+
+    private var documents = observableList<Document>()
     private val model = DocumentModel(Document(File("")))
-    /*TODO("Fix to enable buttons only when the document can actually be move up or down")
-    private var canMoveUp = SimpleBooleanProperty(documents.indexOf(model.document) > 0)
-    private var canMoveDown = SimpleBooleanProperty(documents.indexOf(model.document) < documents.size - 1)*/
 
     override val root = borderpane {
-        setPrefSize(600.0, 400.0)
+        setMinSize(600.0, 400.0)
         top = hbox {
+            spacing = 5.0
+            padding = insets(5.0)
             button("Add") {
-                hboxConstraints {
-                    margin = insets(5.0)
-                }
                 action { addFiles() }
             }
+            button("Clear") {
+                action { removeAll() }
+            }
+            separator {
+                orientation = Orientation.VERTICAL
+            }
             button("Duplicate") {
-                hboxConstraints {
-                    margin = insets(5.0)
-                }
                 action { duplicateFile() }
             }
             button("Remove") {
-                hboxConstraints {
-                    margin = insets(5.0)
-                }
                 action { removeFile() }
             }
             separator {
                 orientation = Orientation.VERTICAL
             }
             button("Move Up") {
-                hboxConstraints {
-                    margin = insets(5.0)
-                }
-                //TODO("Fix enableWhen(canMoveUp)")
-                action { moveUp() }
+                moveUpBtn = this
             }
             button("Move Down") {
-                hboxConstraints {
-                    margin = insets(5.0)
-                }
-                //TODO("Fix enableWhen(canMoveDown)")
-                action { moveDown() }
+                moveDownBtn = this
             }
             separator {
                 orientation = Orientation.VERTICAL
@@ -73,19 +60,21 @@ class PDFMergerView : View("PDF Merger") {
                 hgrow = Priority.ALWAYS
             }
             button("Merge") {
-                hboxConstraints {
-                    margin = insets(5.0)
-                }
                 action { mergeFiles() }
             }
         }
         center = tableview(documents) {
             table = this
-            readonlyColumn("File", Document::pathname)
+            readonlyColumn("File", Document::pathname) {
+                minWidth = 400.0
+                hgrow = Priority.ALWAYS
+                isSortable = false
+            }
             column("Start", Document::start) {
+                isSortable = false
                 makeEditable()
                 setOnEditCommit {
-                    if (it.newValue >= 0 && it.newValue <= model.end.value as Int) {
+                    if (it.newValue > 0 && it.newValue <= model.end.value as Int) {
                         model.start.value = it.newValue
                     } else {
                         model.start.value = it.oldValue
@@ -95,6 +84,7 @@ class PDFMergerView : View("PDF Merger") {
                 }
             }
             column("End", Document::end) {
+                isSortable = false
                 makeEditable()
                 setOnEditCommit {
                     val max = model.document.pdf.numberOfPages
@@ -114,6 +104,20 @@ class PDFMergerView : View("PDF Merger") {
         }
     }
 
+
+    init {
+        val selectedIndex = table.selectionModel.selectedIndexProperty()
+
+        moveUpBtn.action { moveUp(selectedIndex.get()) }
+        moveUpBtn.disableProperty().bind(selectedIndex.lessThanOrEqualTo(0))
+
+        moveDownBtn.action { moveDown(selectedIndex.get()) }
+        moveDownBtn.disableProperty().bind(Bindings.createBooleanBinding(Callable{
+            val index = selectedIndex.get()
+            index < 0 || index + 1 >= table.items.size
+        }, selectedIndex, table.items))
+    }
+
     private fun addFiles() {
         val filesToOpen = chooseFile(
                 title = "Open file",
@@ -125,8 +129,13 @@ class PDFMergerView : View("PDF Merger") {
         }
     }
 
+    private fun removeAll() {
+        //TODO("Implement confirmation dialog")
+        documents.clear()
+    }
+
     private fun duplicateFile() {
-        documents.add(Document(File(model.pathname.value)))
+        documents.add(Document(File(model.pathname.value), model.start.value as Int, model.end.value as Int))
     }
 
     private fun removeFile() {
@@ -135,20 +144,15 @@ class PDFMergerView : View("PDF Merger") {
 
     private fun swap(fromIndex: Int, toIndex: Int) {
         documents = documents.apply { add(toIndex, removeAt(fromIndex)) }
+        table.selectionModel.select(toIndex)
     }
 
-    private fun moveUp() {
-        val fromIndex = documents.indexOf(model.document)
-        if (fromIndex == 0) return
-        val toIndex = fromIndex - 1
-        swap(fromIndex, toIndex)
+    private fun moveUp(fromIndex: Int) {
+        swap(fromIndex, fromIndex - 1)
     }
 
-    private fun moveDown() {
-        val fromIndex = documents.indexOf(model.document)
-        if (fromIndex == documents.size - 1) return
-        val toIndex = fromIndex + 1
-        swap(fromIndex, toIndex)
+    private fun moveDown(fromIndex: Int) {
+        swap(fromIndex, fromIndex + 1)
     }
 
     private fun mergeFiles() {
