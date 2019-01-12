@@ -9,7 +9,7 @@ import tornadofx.*
 import java.io.File
 
 
-class Document(var file: File) {
+class Document(file: File) {
     val pathnameProperty = SimpleStringProperty(file.absolutePath)
     var pathname by pathnameProperty
 
@@ -20,8 +20,6 @@ class Document(var file: File) {
 
     val endProperty = SimpleIntegerProperty(pdf.numberOfPages)
     var end by endProperty
-
-
 }
 
 
