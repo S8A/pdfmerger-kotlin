@@ -1,8 +1,6 @@
 package io.github.s8a.pdfmerger
 
 
-import java.io.File
-import java.util.concurrent.Callable
 import javafx.beans.binding.Bindings
 import javafx.geometry.Orientation
 import javafx.scene.control.Button
@@ -14,47 +12,53 @@ import org.apache.pdfbox.multipdf.Splitter
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.pdmodel.PDDocumentInformation
 import tornadofx.*
+import java.io.File
+import java.util.concurrent.Callable
 
 
 class PDFMergerApp : App(PDFMergerView::class)
 
 
-class PDFMergerView : View("PDF Merger") {
-    //TODO("Internationalisation")
-    private var table : TableView<Document> by singleAssign()
-    private var moveUpBtn : Button by singleAssign()
-    private var moveDownBtn : Button by singleAssign()
+class PDFMergerView : View() {
+    private var table: TableView<Document> by singleAssign()
+
+    private var duplicateBtn: Button by singleAssign()
+    private var removeBtn: Button by singleAssign()
+    private var moveUpBtn: Button by singleAssign()
+    private var moveDownBtn: Button by singleAssign()
+    private var mergeBtn: Button by singleAssign()
 
     private var documents = observableList<Document>()
     private val model = DocumentModel(Document(File("")))
 
     override val root = borderpane {
+        title = "PDF Merger"
         setMinSize(600.0, 400.0)
         top = hbox {
             spacing = 5.0
             padding = insets(5.0)
-            button("Add") {
+            button(messages["button.add"]) {
                 action { addFiles() }
             }
-            button("Clear") {
+            button(messages["button.clear"]) {
                 action { removeAll() }
             }
             separator {
                 orientation = Orientation.VERTICAL
             }
-            button("Duplicate") {
-                action { duplicateFile() }
+            button(messages["button.duplicate"]) {
+                duplicateBtn = this
             }
-            button("Remove") {
-                action { removeFile() }
+            button(messages["button.remove"]) {
+                removeBtn = this
             }
             separator {
                 orientation = Orientation.VERTICAL
             }
-            button("Move Up") {
+            button(messages["button.moveup"]) {
                 moveUpBtn = this
             }
-            button("Move Down") {
+            button(messages["button.movedown"]) {
                 moveDownBtn = this
             }
             separator {
@@ -64,18 +68,18 @@ class PDFMergerView : View("PDF Merger") {
                 prefWidth = 20.0
                 hgrow = Priority.ALWAYS
             }
-            button("Merge") {
-                action { mergeFiles() }
+            button(messages["button.merge"]) {
+                mergeBtn = this
             }
         }
         center = tableview(documents) {
             table = this
-            readonlyColumn("File", Document::pathname) {
+            readonlyColumn(messages["table.file"], Document::pathname) {
                 minWidth = 400.0
                 hgrow = Priority.ALWAYS
                 isSortable = false
             }
-            column("Start", Document::start) {
+            column(messages["table.start"], Document::start) {
                 isSortable = false
                 makeEditable()
                 setOnEditCommit {
@@ -88,7 +92,7 @@ class PDFMergerView : View("PDF Merger") {
                     table.refresh()
                 }
             }
-            column("End", Document::end) {
+            column(messages["table.end"], Document::end) {
                 isSortable = false
                 makeEditable()
                 setOnEditCommit {
@@ -113,19 +117,32 @@ class PDFMergerView : View("PDF Merger") {
     init {
         val selectedIndex = table.selectionModel.selectedIndexProperty()
 
+        duplicateBtn.action { duplicateFile() }
+        duplicateBtn.disableProperty().bind(selectedIndex.lessThan(0))
+
+        removeBtn.action { removeFile() }
+        removeBtn.disableProperty().bind(selectedIndex.lessThan(0))
+
         moveUpBtn.action { moveUp(selectedIndex.get()) }
         moveUpBtn.disableProperty().bind(selectedIndex.lessThanOrEqualTo(0))
 
         moveDownBtn.action { moveDown(selectedIndex.get()) }
-        moveDownBtn.disableProperty().bind(Bindings.createBooleanBinding(Callable{
-            val index = selectedIndex.get()
-            index < 0 || index + 1 >= table.items.size
-        }, selectedIndex, table.items))
+        moveDownBtn.disableProperty().bind(Bindings.createBooleanBinding(
+                Callable {
+                    val index = selectedIndex.get()
+                    index < 0 || index + 1 >= table.items.size
+                },
+                selectedIndex, table.items
+        ))
+
+        mergeBtn.action { mergeFiles() }
+        mergeBtn.disableProperty().bind(Bindings.createBooleanBinding(
+                Callable { table.items.isEmpty() }, table.items))
     }
 
     private fun addFiles() {
         val filesToOpen = chooseFile(
-                title = "Open file",
+                title = messages["title.openfile"],
                 filters = arrayOf(FileChooser.ExtensionFilter("PDF", "*.pdf")),
                 mode = FileChooserMode.Multi
         )
@@ -171,12 +188,17 @@ class PDFMergerView : View("PDF Merger") {
             val splits = splitter.split(document.pdf)
             for (split in splits) {
                 merger.appendDocument(out, split)
+                split.close()
             }
         }
 
-        val fileToSave = chooseFile(title = "Save Merged PDF", filters = arrayOf(), mode = FileChooserMode.Save)[0]
-        out.documentInformation = PDDocumentInformation()
-        out.save(fileToSave)
+        val fileToSave = chooseFile(title = messages["title.savefile"], filters = arrayOf(), mode = FileChooserMode.Save)
+        if (fileToSave.isNotEmpty()) {
+            out.documentInformation = PDDocumentInformation()
+            out.save(fileToSave[0])
+        }
+
+        out.close()
     }
 }
 
