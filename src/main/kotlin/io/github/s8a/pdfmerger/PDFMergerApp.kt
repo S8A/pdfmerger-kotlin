@@ -5,6 +5,7 @@ import javafx.beans.binding.Bindings
 import javafx.geometry.Orientation
 import javafx.scene.control.Button
 import javafx.scene.control.TableView
+import javafx.scene.image.Image
 import javafx.scene.layout.Priority
 import javafx.stage.FileChooser
 import org.apache.pdfbox.multipdf.PDFMergerUtility
@@ -34,6 +35,7 @@ class PDFMergerView : View() {
     override val root = borderpane {
         title = "PDF Merger"
         setMinSize(600.0, 400.0)
+        setStageIcon(Image("pdfmerger.png"))
         top = hbox {
             spacing = 5.0
             padding = insets(5.0)
